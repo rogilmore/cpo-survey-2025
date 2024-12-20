@@ -1,0 +1,122 @@
+---
+title: "index"
+format: html
+params:
+  update_data: true
+  results_fn: "CPO Member Survey (Responses)"
+  fn: cpo-survey-2025.csv
+---
+
+## About
+
+This page downloads, tidies, and visualizes data from a membership survey conducted by the Central Pennsylvania Observers (CPO) astronomy club in late 2024-2025.
+
+## Survey
+
+Direct link: <https://forms.gle/kpwGFo2qpsKmNLya9>
+
+Here is the survey:
+
+<iframe src="https://docs.google.com/forms/d/e/1FAIpQLScWSF5_mUWJHatvsmPOE4APbl48tZv0FjzbnmHj8mmAiWLdPQ/viewform?embedded=true" width="640" height="2286" frameborder="0" marginheight="0" marginwidth="0">Loading…</iframe>
+
+## Preparation
+
+First, we load the external packages (groups of R commands) that we will be using.
+
+```{r}
+library("ggplot2")
+library("dplyr")
+library("googledrive")
+```
+
+## Gathering
+
+This section downloads the data from a Google Sheet.
+
+```{r, eval=params$update_data}
+#| label: gather-data-from-google
+#| message: false
+#| echo: true
+if (!dir.exists('csv')) {
+  message("Creating missing `csv/`.")
+  dir.create("csv")
+}
+
+if (params$update_data) {
+  options(gargle_oauth_email = Sys.getenv("GMAIL_SURVEY"))
+  googledrive::drive_auth()
+
+  assertthat::is.string(params$results_fn)
+  assertthat::is.string(params$fn)
+  assertthat::is.writeable(file.path("csv", params$fn))
+  googledrive::drive_download(
+    params$results_fn,
+    path = file.path("csv", params$fn),
+    type = "csv",
+    overwrite = TRUE
+  )
+  message("Data updated.")
+} else {
+  message("Using stored data.")
+}
+```
+
+## Cleaning
+
+Next we load the saved data file and then proceed to clean it.
+
+```{r, eval=params$update_data}
+#| label: load-saved-data
+#| message: false
+#| echo: true
+cpo <-
+  readr::read_csv(file.path("csv", params$fn), show_col_types = FALSE)
+```
+
+As of `{r} Sys.time()`, there are `{r} dim(cpo)[1]` responses.
+
+### Rename variables
+
+These are the raw column/variable names.
+
+```{r}
+# Google Forms puts the full question in the top row of the data file.
+# We use the names() function to extract and print the original questions.
+cpo_qs <- names(cpo)
+cpo_qs
+```
+
+We'll create shorter names to make visualizations.
+
+```{r, eval=params$update_data}
+#| label: clean-variable-names-1
+cpo_clean <- cpo |>
+  dplyr::rename(
+    timestamp = "Timestamp",
+    activities_2024 = "Which of the following astronomy activities did you participate in during 2024?",
+    activities_2025 = "Which of the following astronomy activities do you plan to participate in during 2025?" ,
+    activities_volunteer = "Which of the following activities would you like to get more involved with as a volunteer?",
+    your_goals = "Do you have any particular astronomy goals?",
+    interest_visual = "Rate your level of interest in the following activities. [Visual astronomy]",
+    interest_astrophoto = "Rate your level of interest in the following activities. [Astrophotography]",
+    interest_sci_talks = "Rate your level of interest in the following activities. [Science-oriented talks]",
+    interest_social = "Rate your level of interest in the following activities. [Social gatherings]",
+    interest_tutorials = "Rate your level of interest in the following activities. [Tutorials/how-to's]",
+    interest_field_trips = "Rate your level of interest in the following activities. [Field trips]",
+    interest_gear = "Rate your level of interest in the following activities. [Gear and tech]",
+    interest_public_events = "Rate your level of interest in the following activities. [Events for the public]",
+    doing_well = "What is something the club does really well?",
+    could_improve = "What is something the club could do to improve?",
+    not_doing = "Is there something the club should offer that we are not currently doing?",
+    comments = "Anything else?",
+    name = "Your name (totally optional)"
+  )
+```
+
+Then, let's create a data dictionary so we don't lose the link between the long and the short names.
+
+```{r}
+cpo_dd <- tibble::tibble(questions = cpo_qs, short_names = names(cpo_clean))
+```
+
+Next, we gather the `interest_*` variables into a single variable.
