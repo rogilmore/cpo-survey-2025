@@ -1,5 +1,5 @@
 ---
-title: "index"
+title: "Results"
 format: html
 params:
   update_data: true
@@ -26,6 +26,7 @@ First, we load the external packages (groups of R commands) that we will be usin
 ```{r}
 library("ggplot2")
 library("dplyr")
+library("tidyr")
 library("googledrive")
 ```
 
@@ -120,3 +121,19 @@ cpo_dd <- tibble::tibble(questions = cpo_qs, short_names = names(cpo_clean))
 ```
 
 Next, we gather the `interest_*` variables into a single variable.
+
+```{r}
+cpo_clean <- cpo_clean |>
+  tidyr::pivot_longer(
+    cols = dplyr::starts_with("interest"),
+    names_to = "activity",
+    values_to = "interest_level") |>
+  dplyr::mutate(interest_level = case_match(
+    interest_level,
+    "Minimal interest" ~ "minimal",
+    "Some interest" ~ "some",
+    "Considerable interest" ~ "considerable"
+  )) |>
+  dplyr::mutate(activity = stringr::str_remove(activity, "interest_")) 
+```
+
